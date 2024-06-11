@@ -1,26 +1,40 @@
-# mongo_db.py
-
+import pymongo
 from pymongo import MongoClient
 
 class MongoDB:
-    def __init__(self, uri="mongodb://localhost:27017/", db_name="agenda", collection_name="contatos"):
-        self.client = MongoClient(uri)
-        self.db = self.client[db_name]
-        self.collection = self.db[collection_name]
+    def __init__(self):
+        self.client = MongoClient('localhost', 27017)
+        self.db = self.client['agenda_telefonica']
+        self.collection = self.db['contatos']
+
+    def get_next_id(self):
+        # Recupera o maior ID e incrementa em 1
+        last_contact = self.collection.find_one(sort=[("id", pymongo.DESCENDING)])
+        if last_contact:
+            return last_contact['id'] + 1
+        else:
+            return 1
 
     def insert(self, name, number):
-        contact = {"name": name, "number": number}
+        # Adicionar um ID único
+        contact_id = self.get_next_id()
+        contact = {"id": contact_id, "name": name, "number": number}
         self.collection.insert_one(contact)
 
-    def search(self, name):
-        contact = self.collection.find_one({"name": {"$regex": f"^{name}$", "$options": "i"}})
-        if contact:
-            return contact["number"]
-        return None
+    def search_by_id(self, contact_id):
+        return self.collection.find_one({"id": contact_id})
 
-    def delete(self, name):
-        self.collection.delete_one({"name": {"$regex": f"^{name}$", "$options": "i"}})
+    def search_by_name(self, name):
+        return list(self.collection.find({"name": {"$regex": f".*{name}.*", "$options": "i"}}))
+
+    def search_suggestions(self, prefix):
+        return list(self.collection.find({"name": {"$regex": f"^{prefix}", "$options": "i"}}, {"id": 1, "name": 1}))
+
+    def delete_by_id(self, contact_id):
+        self.collection.delete_one({"id": contact_id})
+
+    def delete_by_name(self, name):
+        self.collection.delete_many({"name": {"$regex": f"^{name}$", "$options": "i"}})
 
     def list_contacts(self):
-        contacts = self.collection.find()
-        return [(contact["name"], contact["number"]) for contact in contacts]
+        return list(self.collection.find())
