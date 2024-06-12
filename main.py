@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, Listbox
 from mongo_db import MongoDB
+from fila import Fila
 
 class AgendaApp:
     def __init__(self, root):
@@ -8,6 +9,7 @@ class AgendaApp:
         self.root.title("Agenda Telefônica")
 
         self.db = MongoDB()
+        self.recent_contacts_fila = Fila()
 
         self.create_widgets()
 
@@ -64,12 +66,23 @@ class AgendaApp:
         self.text_contacts = tk.Text(frame_list, width=50, height=10)
         self.text_contacts.grid(row=1, columnspan=2, pady=5)
 
+        # Frame para listar contatos recentes
+        frame_recent = tk.Frame(self.root)
+        frame_recent.pack(pady=10)
+
+        btn_recent = tk.Button(frame_recent, text="Contatos Recentes", command=self.list_recent_contacts)
+        btn_recent.grid(row=0, columnspan=2, pady=10)
+
+        self.text_recent_contacts = tk.Text(frame_recent, width=50, height=5)
+        self.text_recent_contacts.grid(row=1, columnspan=2, pady=5)
+
     def add_contact(self):
         name = self.entry_name.get()
         number = self.entry_number.get()
         if name and number:
             try:
                 self.db.insert(name, number)
+                self.recent_contacts_fila.enqueue({"name": name, "number": number})
                 messagebox.showinfo("Sucesso", f"Contato {name} adicionado com sucesso!")
                 self.entry_name.delete(0, tk.END)
                 self.entry_number.delete(0, tk.END)
@@ -84,8 +97,8 @@ class AgendaApp:
             try:
                 contact_id = int(search_term)
                 contact = self.db.search_by_id(contact_id)
-                
                 if contact:
+                    self.recent_contacts_fila.enqueue(contact)
                     messagebox.showinfo("Resultado da Busca", f"ID: {contact['id']}, Nome: {contact['name']}, Telefone: {contact['number']}")
                 else:
                     messagebox.showinfo("Resultado da Busca", f"Contato com ID {contact_id} não encontrado.")
@@ -95,19 +108,19 @@ class AgendaApp:
                     self.text_contacts.delete(1.0, tk.END)
                     for contact in results:
                         self.text_contacts.insert(tk.END, f"ID: {contact['id']}, Nome: {contact['name']}, Telefone: {contact['number']}\n")
+                        self.recent_contacts_fila.enqueue(contact)
                 else:
                     messagebox.showinfo("Resultado da Busca", f"Contato {search_term} não encontrado.")
+            self.entry_search.delete(0, tk.END)
         else:
             messagebox.showerror("Erro", "Por favor, insira o ID ou o nome para buscar.")
-        if not results:
-            self.listbox_suggestions.delete(0, tk.END) 
 
     def update_suggestions(self, event):
         prefix = self.entry_search.get().strip()
         suggestions = self.db.search_suggestions(prefix)
         self.listbox_suggestions.delete(0, tk.END)
         for contact in suggestions:
-                        self.listbox_suggestions.insert(tk.END, f"{contact['name']} (ID: {contact['id']})")
+            self.listbox_suggestions.insert(tk.END, f"{contact['name']} (ID: {contact['id']})")
 
     def fill_search_entry(self, event):
         selected = self.listbox_suggestions.curselection()
@@ -121,7 +134,7 @@ class AgendaApp:
     def remove_contact(self):
         search_term = self.entry_remove.get().strip()
         if search_term:
-            try:    
+            try:
                 contact_id = int(search_term)
                 self.db.delete_by_id(contact_id)
                 messagebox.showinfo("Sucesso", f"Contato com ID {contact_id} removido com sucesso!")
@@ -137,11 +150,20 @@ class AgendaApp:
         self.text_contacts.delete(1.0, tk.END)
         if contacts:
             for contact in contacts:
-                # Verifica se o contato tem o campo 'id'
                 contact_id = contact.get('id', 'N/A')
                 self.text_contacts.insert(tk.END, f"ID: {contact_id}, Nome: {contact['name']}, Telefone: {contact['number']}\n")
         else:
             self.text_contacts.insert(tk.END, "Nenhum contato encontrado.\n")
+
+    def list_recent_contacts(self):
+        recent_contacts = self.recent_contacts_fila.display()
+        self.text_recent_contacts.delete(1.0, tk.END)
+        if recent_contacts:
+            for contact in recent_contacts:
+                contact_id = contact.get('id', 'N/A')
+                self.text_recent_contacts.insert(tk.END, f"Nome: {contact['name']}, Telefone: {contact['number']}\n")
+        else:
+            self.text_recent_contacts.insert(tk.END, "Nenhum contato recente.\n")
 
 def main():
     root = tk.Tk()
@@ -150,4 +172,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
