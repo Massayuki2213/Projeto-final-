@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, Listbox
 from mongo_db import MongoDB
 from fila import Fila
+import re
 
 class AgendaApp:
     def __init__(self, root):
@@ -79,15 +80,22 @@ class AgendaApp:
     def add_contact(self):
         name = self.entry_name.get()
         number = self.entry_number.get()
+
+        # Regex para validar número de telefone brasileiro
+        phone_pattern = re.compile(r"^\(?[1-9]{2}\)? ?9?[0-9]{4}-?[0-9]{4}$")
+
         if name and number:
-            try:
-                self.db.insert(name, number)
-                self.recent_contacts_fila.enqueue({"name": name, "number": number})
-                messagebox.showinfo("Sucesso", f"Contato {name} adicionado com sucesso!")
-                self.entry_name.delete(0, tk.END)
-                self.entry_number.delete(0, tk.END)
-            except ValueError as e:
-                messagebox.showerror("Erro", str(e))
+            if phone_pattern.match(number):
+                try:
+                    self.db.insert(name, number)
+                    self.recent_contacts_fila.enqueue({"name": name, "number": number})
+                    messagebox.showinfo("Sucesso", f"Contato {name} adicionado com sucesso!")
+                    self.entry_name.delete(0, tk.END)
+                    self.entry_number.delete(0, tk.END)
+                except ValueError as e:
+                    messagebox.showerror("Erro", str(e))
+            else:
+                messagebox.showerror("Erro", "Número de telefone inválido. Insira um número com DDD válido e 8 ou 9 dígitos.")
         else:
             messagebox.showerror("Erro", "Por favor, insira o nome e o número.")
 
